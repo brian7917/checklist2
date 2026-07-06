@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>チェックリスト</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, "Yu Gothic", "Meiryo", sans-serif;
+      padding: 30px;
+      background-color: #fff;
+    }
+
+    #pdfArea {
+      margin-top: 20px;
+      padding: 25px;
+      border: 1px solid #ddd;
+      max-width: 700px;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+    }
+
+    .title-area {
+      margin-bottom: 15px;
+    }
+
+    .input-area {
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      padding: 8px;
+      width: 280px;
+      font-size: 15px;
+    }
+
+    input[type="checkbox"] {
+      width: auto;
+      margin: 0 8px;
+      transform: scale(1.1);
+    }
+
+    button {
+      padding: 8px 12px;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+
+    #taskList {
+      margin-top: 20px;
+    }
+
+    .task-item {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .task-number {
+      width: 25px;
+      text-align: right;
+      font-weight: bold;
+    }
+
+    .task-text {
+      min-width: 180px;
+      display: inline-block;
+    }
+
+    .done {
+      text-decoration: line-through;
+      color: gray;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="pdfArea">
+    <h2 id="checklistTitle">チェックリスト</h2>
+
+    <div class="title-area no-print">
+      <input type="text" id="titleInput" placeholder="タイトルを入力してください">
+      <button id="changeTitleButton">タイトル変更</button>
+    </div>
+
+    <div class="input-area no-print">
+      <input type="text" id="taskInput" placeholder="項目を入力してください">
+      <button id="addButton">追加</button>
+      <button id="exportPdfButton">PDF出力</button>
+    </div>
+
+    <div id="taskList"></div>
+  </div>
+
+  <script>
+    const title = document.getElementById("checklistTitle");
+    const titleInput = document.getElementById("titleInput");
+    const changeTitleButton = document.getElementById("changeTitleButton");
+
+    const input = document.getElementById("taskInput");
+    const addButton = document.getElementById("addButton");
+    const exportPdfButton = document.getElementById("exportPdfButton");
+    const taskList = document.getElementById("taskList");
+
+    let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+    let savedTitle = localStorage.getItem("checklistTitle") || "チェックリスト";
+
+    title.textContent = savedTitle;
+    titleInput.value = savedTitle;
+
+    function saveTasks() {
+      localStorage.setItem("tasks", JSON.stringify(tasks));
+    }
+
+    function saveTitle() {
+      localStorage.setItem("checklistTitle", title.textContent);
+    }
+
+    function renderTasks() {
+      taskList.innerHTML = "";
+
+      tasks.forEach(function(task, index) {
+        const item = document.createElement("div");
+        item.className = "task-item";
+
+        const numberSpan = document.createElement("span");
+        numberSpan.className = "task-number";
+        numberSpan.textContent = index + 1 + ".";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = task.done;
+
+        const span = document.createElement("span");
+        span.className = "task-text";
+        span.textContent = task.text;
+
+        if (task.done) {
+          span.classList.add("done");
+        }
+
+        checkbox.addEventListener("change", function() {
+          tasks[index].done = checkbox.checked;
+          saveTasks();
+          renderTasks();
+        });
+
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "削除";
+        deleteButton.classList.add("no-print");
+
+        deleteButton.addEventListener("click", function() {
+          tasks.splice(index, 1);
+          saveTasks();
+          renderTasks();
+        });
+
+        item.appendChild(numberSpan);
+        item.appendChild(checkbox);
+        item.appendChild(span);
+        item.appendChild(deleteButton);
+
+        taskList.appendChild(item);
+      });
+    }
+
+    function addTask() {
+      const taskText = input.value.trim();
+
+      if (taskText === "") {
+        alert("項目を入力してください");
+        return;
+      }
+
+      tasks.push({
+        text: taskText,
+        done: false
+      });
+
+      saveTasks();
+      renderTasks();
+
+      input.value = "";
+      input.focus();
+    }
+
+    function changeTitle() {
+      const newTitle = titleInput.value.trim();
+
+      if (newTitle === "") {
+        alert("タイトルを入力してください");
+        return;
+      }
+
+      title.textContent = newTitle;
+      saveTitle();
+    }
+
+    function exportPdf() {
+      const noPrintElements = document.querySelectorAll(".no-print");
+
+      noPrintElements.forEach(function(element) {
+        element.style.display = "none";
+      });
+
+      const element = document.getElementById("pdfArea");
+
+      const options = {
+        margin: 10,
+        filename: title.textContent + ".pdf",
+        image: {
+          type: "jpeg",
+          quality: 0.98
+        },
+        html2canvas: {
+          scale: 2
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait"
+        }
+      };
+
+      html2pdf().set(options).from(element).save().then(function() {
+        noPrintElements.forEach(function(element) {
+          element.style.display = "";
+        });
+      });
+    }
+
+    addButton.addEventListener("click", addTask);
+    changeTitleButton.addEventListener("click", changeTitle);
+    exportPdfButton.addEventListener("click", exportPdf);
+
+    input.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        addTask();
+      }
+    });
+
+    titleInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        changeTitle();
+      }
+    });
+
+    renderTasks();
+  </script>
+
+</body>
+</html>
